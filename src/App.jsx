@@ -32,6 +32,7 @@ import {
   MessageCircle
 } from 'lucide-react';
 import './App.css';
+import LiveChat from './components/LiveChat';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -210,21 +211,7 @@ const App = () => {
         setError(data.message || 'Signal generation failed');
       }
     } catch (err) {
-      setError('Failed to connect to backend - Demo mode');
-      // Generate mock signal for demo
-      setSignal({
-        id: 'demo-' + Date.now(),
-        status: 'active',
-        asset: selectedAsset,
-        direction: Math.random() > 0.5 ? 'CALL' : 'PUT',
-        confidence: Math.floor(Math.random() * 20) + 75,
-        tier: ['Gold', 'Silver', 'Bronze'][Math.floor(Math.random() * 3)],
-        price: (1.0850 + (Math.random() - 0.5) * 0.01).toFixed(5),
-        expire: selectedTimeframe,
-        risk_pct: (Math.random() * 3 + 1).toFixed(1),
-        pattern: 'Demo Pattern',
-        confluence_score: Math.floor(Math.random() * 20) - 10
-      });
+      setError('Failed to connect to backend');
     } finally {
       setLoading(false);
     }
@@ -307,6 +294,45 @@ const App = () => {
     fetchPerformanceStats();
   }, [selectedAsset, tierFilter, outcomeFilter]);
 
+  // TradingView Widget Effect
+  useEffect(() => {
+    const scriptId = 'tradingview-widget-script';
+    if (document.getElementById(scriptId)) return;
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.type = 'text/javascript';
+    script.async = true;
+    script.innerHTML = `
+      {
+        "autosize": true,
+        "symbol": "BINANCE:${selectedAsset}USD",
+        "interval": "1",
+        "timezone": "exchange",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "enable_publishing": false,
+        "hide_top_toolbar": true,
+        "hide_legend": true,
+        "save_image": false,
+        "calendar": false,
+        "hide_volume": true,
+        "support_host": "https://www.tradingview.com"
+      }`;
+    const container = document.getElementById('tradingview_widget');
+    if (container) {
+      container.appendChild(script);
+    }
+
+    return () => {
+      if (container && container.contains(script)) {
+        container.removeChild(script);
+      }
+    };
+  }, [selectedAsset]);
+
   useEffect(() => {
     let interval;
     if (autoMode) {
@@ -346,6 +372,7 @@ const App = () => {
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Live Chat
               </Button>
+              <LiveChat />
 
               <Dialog open={showTelegramSettings} onOpenChange={setShowTelegramSettings}>
                 <DialogTrigger asChild>
@@ -383,6 +410,20 @@ const App = () => {
                       <Send className="w-4 h-4 mr-2" />
                       Test Connection
                     </Button>
+                    <div>
+                      <Label htmlFor="signal-tier-filter">Filter Signals by Tier</Label>
+                      <Select value={tierFilter} onValueChange={setTierFilter}>
+                        <SelectTrigger id="signal-tier-filter" className="bg-slate-700 border-slate-600">
+                          <SelectValue placeholder="Select Tier" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectItem value="all">All Tiers</SelectItem>
+                          <SelectItem value="Gold">Gold</SelectItem>
+                          <SelectItem value="Silver">Silver</SelectItem>
+                          <SelectItem value="Bronze">Bronze</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -699,25 +740,19 @@ const App = () => {
 
           {/* Middle Column - TradingView Chart */}
           <div className="lg:col-span-2">
-            <Card className="bg-black/40 border-white/10 backdrop-blur-sm h-full">
+            <Card className="bg-black/40 border-white/10 backdrop-blur-sm col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="w-5 h-5" />
                   Live Chart - {selectedAsset}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="bg-slate-900 rounded-lg p-4 h-96 flex items-center justify-center">
-                  <div className="text-center">
-                    <BarChart3 className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                    <p className="text-slate-400 text-lg">TradingView Chart Integration</p>
-                    <p className="text-sm text-slate-500 mt-2">Live price data with pattern overlays and sentiment indicators</p>
-                    <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-                      <div className="bg-slate-800 p-3 rounded">
-                        <div className="text-green-400 font-semibold">RSI: 45.2</div>
-                        <div className="text-slate-400">Neutral</div>
-                      </div>
-                      <div className="bg-slate-800 p-3 rounded">
+              <CardContent className="p-0">
+                <div id="tradingview_widget_container" className="h-[400px] w-full">
+                  <div id="tradingview_widget" className="h-full w-full"></div>
+                </div>
+              </CardContent>
+            </Card>iv className="bg-slate-800 p-3 rounded">
                         <div className="text-blue-400 font-semibold">MACD: +0.0012</div>
                         <div className="text-slate-400">Bullish</div>
                       </div>
