@@ -32,9 +32,16 @@ import {
   MessageCircle
 } from 'lucide-react';
 import './App.css';
-import LiveChat from './components/LiveChat';
+import EnhancedLiveChat from './components/EnhancedLiveChat';
+import SimpleTradingView from './components/SimpleTradingView';
+import SettingsPanel from './components/SettingsPanel';
+import BrokerPanel from './components/BrokerPanel';
+import RLDashboard from './components/RLDashboard';
+import MultiPanelDashboard from './components/MultiPanelDashboard';
+import CommunityTradingPanel from './components/CommunityTradingPanel';
+import AnalyticsPanel from './components/AnalyticsPanel';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.REACT_APP_API_URL || 'https://g8h3ilc3ee7p.manus.space';
 
 const App = () => {
   // Core state
@@ -55,7 +62,32 @@ const App = () => {
   // Telegram settings
   const [telegramToken, setTelegramToken] = useState('');
   const [telegramChatId, setTelegramChatId] = useState('');
-  const [showTelegramSettings, setShowTelegramSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // Comprehensive settings
+  const [notificationSettings, setNotificationSettings] = useState({
+    enableTelegram: true,
+    enableBrowser: true,
+    enableSound: false,
+    goldSignalsOnly: false,
+    minConfidence: 70
+  });
+  
+  const [riskSettings, setRiskSettings] = useState({
+    maxDailyLoss: 5.0,
+    maxConsecutiveLosses: 3,
+    cooldownPeriod: 60,
+    autoStopLoss: true,
+    riskPerTrade: 2.0
+  });
+  
+  const [apiSettings, setApiSettings] = useState({
+    polygonEnabled: true,
+    alphaVantageEnabled: true,
+    newsEnabled: true,
+    sentimentAnalysis: true,
+    realTimeData: true
+  });
 
   // Live Chat state
   const [showLiveChat, setShowLiveChat] = useState(false);
@@ -63,6 +95,13 @@ const App = () => {
     { id: 1, type: 'bot', message: 'Welcome to Premium AI Signals! How can I help you today?', timestamp: new Date() }
   ]);
   const [chatInput, setChatInput] = useState('');
+
+  // New panel states
+  const [showBrokerPanel, setShowBrokerPanel] = useState(false);
+  const [showRLDashboard, setShowRLDashboard] = useState(false);
+  const [showMultiPanelDashboard, setShowMultiPanelDashboard] = useState(false);
+  const [showCommunityPanel, setShowCommunityPanel] = useState(false);
+  const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
 
   // Performance stats
   const [performanceStats, setPerformanceStats] = useState({
@@ -77,7 +116,37 @@ const App = () => {
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [signalBreakdown, setSignalBreakdown] = useState(null);
 
-  const ASSETS = ["EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "EURGBP", "EURJPY", "GBPJPY", "AUDJPY", "USDCHF", "NZDUSD"];
+  const ASSETS = [
+    // Forex Pairs
+    "EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "EURGBP", "EURJPY", "GBPJPY", "AUDJPY", "USDCHF", "NZDUSD",
+    "USDCAD", "EURAUD", "EURNZD", "GBPAUD", "GBPCAD", "AUDCAD", "AUDNZD", "CADJPY", "CHFJPY", "NZDJPY",
+    
+    // OTC Forex Pairs (Available when OTC is enabled)
+    "EURUSD-OTC", "GBPUSD-OTC", "AUDUSD-OTC", "USDJPY-OTC", "EURGBP-OTC", "EURJPY-OTC", "GBPJPY-OTC", 
+    "AUDJPY-OTC", "USDCHF-OTC", "NZDUSD-OTC", "USDCAD-OTC", "EURAUD-OTC",
+    
+    // Major Stocks
+    "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX", "BABA", "AMD",
+    "UBER", "ZOOM", "PYPL", "ADBE", "CRM", "INTC", "ORCL", "IBM", "CSCO", "V",
+    
+    // Crypto (if supported)
+    "BTCUSD", "ETHUSD", "ADAUSD", "DOTUSD", "LINKUSD", "LTCUSD", "XRPUSD", "BCHUSD"
+  ];
+
+  const getAvailableAssets = () => {
+    if (isOTC) {
+      // When OTC is enabled, show OTC forex pairs and stocks
+      return ASSETS.filter(asset => 
+        asset.includes('-OTC') || 
+        ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'BABA', 'AMD',
+         'UBER', 'ZOOM', 'PYPL', 'ADBE', 'CRM', 'INTC', 'ORCL', 'IBM', 'CSCO', 'V',
+         'BTCUSD', 'ETHUSD', 'ADAUSD', 'DOTUSD', 'LINKUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD'].includes(asset)
+      );
+    } else {
+      // Regular forex pairs only
+      return ASSETS.filter(asset => !asset.includes('-OTC') && !['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'BABA', 'AMD', 'UBER', 'ZOOM', 'PYPL', 'ADBE', 'CRM', 'INTC', 'ORCL', 'IBM', 'CSCO', 'V', 'BTCUSD', 'ETHUSD', 'ADAUSD', 'DOTUSD', 'LINKUSD', 'LTCUSD', 'XRPUSD', 'BCHUSD'].includes(asset));
+    }
+  };
 
   const getTierIcon = (tier) => {
     switch(tier) {
@@ -108,18 +177,41 @@ const App = () => {
   // Fetch signals history
   const fetchSignalsHistory = async () => {
     try {
+      let url = `${API_BASE}/signals`;
       const params = new URLSearchParams();
-      if (selectedAsset !== 'all') params.append('asset', selectedAsset);
-      if (tierFilter !== 'all') params.append('tier', tierFilter);
-      if (outcomeFilter !== 'all') params.append('outcome', outcomeFilter);
-      params.append('limit', '50');
+      
+      // Use filtered endpoint if tier filter is applied or goldSignalsOnly is true
+      if (tierFilter !== 'all' || notificationSettings.goldSignalsOnly) {
+        url = `${API_BASE}/signals/filtered`;
+        params.append('tier', notificationSettings.goldSignalsOnly ? 'Gold' : tierFilter);
+      } else {
+        // Use regular signals endpoint with other filters
+        if (selectedAsset !== 'all') params.append('asset', selectedAsset);
+        if (outcomeFilter !== 'all') params.append('outcome', outcomeFilter);
+        params.append('limit', '50');
+      }
 
-      const response = await fetch(`${API_BASE}/signals?${params}`);
+      const response = await fetch(`${url}?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
-      setSignalsHistory(data.signals || []);
+      
+      // Handle different response formats
+      if (Array.isArray(data)) {
+        setSignalsHistory(data);
+      } else if (data.signals) {
+        setSignalsHistory(data.signals);
+      } else {
+        setSignalsHistory([]);
+      }
     } catch (err) {
       console.error('Failed to fetch signals history:', err);
-      // Mock data for demo
+      setError(`Connection error: ${err.message}`);
+      
+      // Mock data for demo when backend is unavailable
       setSignalsHistory([
         {
           id: 'demo-1',
@@ -172,10 +264,22 @@ const App = () => {
     setError(null);
     try {
       const asset = isOTC ? `${selectedAsset}-OTC` : selectedAsset;
-      const response = await fetch(`${API_BASE}/signals/${asset}?otc=${isOTC}&timeframe=${selectedTimeframe}`);
+      const response = await fetch(`${API_BASE}/signals/${asset}?otc=${isOTC}&timeframe=${selectedTimeframe}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Add timeout
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const data = await response.json();
 
-      if (data.status === 'active') {
+      if (data.status === 'active' || data.id) { // Check for either status or id to handle different response formats
         setSignal(data);
         setSignalBreakdown({
           confidence: data.confidence,
@@ -207,11 +311,24 @@ const App = () => {
         if (telegramToken && telegramChatId) {
           sendTelegramNotification(data);
         }
+        
+        // Clear any previous errors
+        setError(null);
       } else {
         setError(data.message || 'Signal generation failed');
       }
     } catch (err) {
-      setError('Failed to connect to backend');
+      console.error('Signal generation error:', err);
+      
+      if (err.name === 'AbortError') {
+        setError('Request timeout - Backend may be slow or unavailable');
+      } else if (err.message.includes('Failed to fetch')) {
+        setError('Failed to connect to backend - Check if backend is running');
+      } else if (err.message.includes('HTTP')) {
+        setError(`Backend error: ${err.message}`);
+      } else {
+        setError(`Connection error: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -232,17 +349,6 @@ const App = () => {
       });
     } catch (err) {
       console.error('Failed to send Telegram notification:', err);
-    }
-  };
-
-  // Test Telegram connection
-  const testTelegram = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/telegram/test`);
-      const data = await response.json();
-      alert(data.message || 'Test notification sent!');
-    } catch (err) {
-      alert('Failed to send test notification');
     }
   };
 
@@ -294,45 +400,7 @@ const App = () => {
     fetchPerformanceStats();
   }, [selectedAsset, tierFilter, outcomeFilter]);
 
-  // TradingView Widget Effect
-  useEffect(() => {
-    const scriptId = 'tradingview-widget-script';
-    if (document.getElementById(scriptId)) return;
-
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    script.type = 'text/javascript';
-    script.async = true;
-    script.innerHTML = `
-      {
-        "autosize": true,
-        "symbol": "BINANCE:${selectedAsset}USD",
-        "interval": "1",
-        "timezone": "exchange",
-        "theme": "dark",
-        "style": "1",
-        "locale": "en",
-        "enable_publishing": false,
-        "hide_top_toolbar": true,
-        "hide_legend": true,
-        "save_image": false,
-        "calendar": false,
-        "hide_volume": true,
-        "support_host": "https://www.tradingview.com"
-      }`;
-    const container = document.getElementById('tradingview_widget');
-    if (container) {
-      container.appendChild(script);
-    }
-
-    return () => {
-      if (container && container.contains(script)) {
-        container.removeChild(script);
-      }
-    };
-  }, [selectedAsset]);
-
+  // Auto mode effect
   useEffect(() => {
     let interval;
     if (autoMode) {
@@ -344,6 +412,14 @@ const App = () => {
       if (interval) clearInterval(interval);
     };
   }, [autoMode, selectedAsset, selectedTimeframe, isOTC]);
+
+  // Update selected asset when OTC mode changes
+  useEffect(() => {
+    const availableAssets = getAvailableAssets();
+    if (!availableAssets.includes(selectedAsset)) {
+      setSelectedAsset(availableAssets[0] || 'EURUSD');
+    }
+  }, [isOTC]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
@@ -372,61 +448,66 @@ const App = () => {
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Live Chat
               </Button>
-              <LiveChat />
+              <EnhancedLiveChat apiBase={API_BASE} />
 
-              <Dialog open={showTelegramSettings} onOpenChange={setShowTelegramSettings}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Settings className="w-4 h-4 mr-2" />
-                    Settings
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-slate-800 border-slate-700">
-                  <DialogHeader>
-                    <DialogTitle>Telegram Settings</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="telegram-token">Bot Token</Label>
-                      <Input
-                        id="telegram-token"
-                        value={telegramToken}
-                        onChange={(e) => setTelegramToken(e.target.value)}
-                        placeholder="Enter your Telegram bot token"
-                        className="bg-slate-700 border-slate-600"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="telegram-chat">Chat ID</Label>
-                      <Input
-                        id="telegram-chat"
-                        value={telegramChatId}
-                        onChange={(e) => setTelegramChatId(e.target.value)}
-                        placeholder="Enter your chat ID"
-                        className="bg-slate-700 border-slate-600"
-                      />
-                    </div>
-                    <Button onClick={testTelegram} className="w-full">
-                      <Send className="w-4 h-4 mr-2" />
-                      Test Connection
-                    </Button>
-                    <div>
-                      <Label htmlFor="signal-tier-filter">Filter Signals by Tier</Label>
-                      <Select value={tierFilter} onValueChange={setTierFilter}>
-                        <SelectTrigger id="signal-tier-filter" className="bg-slate-700 border-slate-600">
-                          <SelectValue placeholder="Select Tier" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700">
-                          <SelectItem value="all">All Tiers</SelectItem>
-                          <SelectItem value="Gold">Gold</SelectItem>
-                          <SelectItem value="Silver">Silver</SelectItem>
-                          <SelectItem value="Bronze">Bronze</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              {/* Broker Panel Button */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowBrokerPanel(true)}
+              >
+                <DollarSign className="w-4 h-4 mr-2" />
+                Brokers
+              </Button>
+
+              {/* RL Dashboard Button */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowRLDashboard(true)}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                AI Learning
+              </Button>
+
+              {/* Multi-Panel Dashboard Button */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowMultiPanelDashboard(true)}
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+
+              {/* Community Trading Button */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowCommunityPanel(true)}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Community
+              </Button>
+
+              {/* Analytics Button */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowAnalyticsPanel(true)}
+              >
+                <Activity className="w-4 h-4 mr-2" />
+                Analytics
+              </Button>
+
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowSettings(true)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Button>
             </div>
           </div>
         </div>
@@ -497,7 +578,7 @@ const App = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700">
-                        {ASSETS.map(asset => (
+                        {getAvailableAssets().map(asset => (
                           <SelectItem key={asset} value={asset}>{asset}</SelectItem>
                         ))}
                       </SelectContent>
@@ -519,13 +600,33 @@ const App = () => {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="otc-mode">OTC Mode</Label>
+                  <Label htmlFor="otc-mode" className="flex items-center gap-2">
+                    OTC Mode
+                    {isOTC && (
+                      <Badge variant="outline" className="border-orange-500/30 text-orange-400">
+                        <Activity className="w-3 h-3 mr-1" />
+                        Active
+                      </Badge>
+                    )}
+                  </Label>
                   <Switch
                     id="otc-mode"
                     checked={isOTC}
                     onCheckedChange={setIsOTC}
                   />
                 </div>
+
+                {isOTC && (
+                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-orange-400 text-sm">
+                      <Activity className="w-4 h-4" />
+                      <span className="font-medium">OTC Market Active</span>
+                    </div>
+                    <p className="text-xs text-orange-300 mt-1">
+                      Trading OTC forex pairs, stocks, and crypto assets with extended hours
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <Label htmlFor="auto-mode">Auto Mode</Label>
@@ -738,21 +839,13 @@ const App = () => {
             </Card>
           </div>
 
-          {/* Middle Column - TradingView Chart */}
+          {/* Middle Column - Enhanced TradingView Chart */}
           <div className="lg:col-span-2">
-            <Card className="bg-black/40 border-white/10 backdrop-blur-sm col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  Live Chart - {selectedAsset}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div id="tradingview_widget_container" className="h-[400px] w-full">
-                  <div id="tradingview_widget" className="h-full w-full"></div>
-                </div>
-              </CardContent>
-            </Card>
+            <SimpleTradingView
+              selectedAsset={selectedAsset}
+              selectedTimeframe={selectedTimeframe}
+              signal={signal}
+            />
           </div>
         </div>
 
@@ -918,6 +1011,88 @@ const App = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Comprehensive Settings Panel */}
+      <SettingsPanel
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        apiBase={API_BASE}
+        telegramToken={telegramToken}
+        setTelegramToken={setTelegramToken}
+        telegramChatId={telegramChatId}
+        setTelegramChatId={setTelegramChatId}
+        notificationSettings={notificationSettings}
+        setNotificationSettings={setNotificationSettings}
+        riskSettings={riskSettings}
+        setRiskSettings={setRiskSettings}
+        apiSettings={apiSettings}
+        setApiSettings={setApiSettings}
+      />
+
+      {/* Broker Panel Dialog */}
+      <Dialog open={showBrokerPanel} onOpenChange={setShowBrokerPanel}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Broker Management & Automated Trading
+            </DialogTitle>
+          </DialogHeader>
+          <BrokerPanel apiBase={API_BASE} />
+        </DialogContent>
+      </Dialog>
+
+      {/* RL Dashboard Dialog */}
+      <Dialog open={showRLDashboard} onOpenChange={setShowRLDashboard}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5" />
+              AI Learning & Signal Optimization
+            </DialogTitle>
+          </DialogHeader>
+          <RLDashboard apiBase={API_BASE} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Multi-Panel Dashboard Dialog */}
+      <Dialog open={showMultiPanelDashboard} onOpenChange={setShowMultiPanelDashboard}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-7xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              Multi-Panel Trading Dashboard
+            </DialogTitle>
+          </DialogHeader>
+          <MultiPanelDashboard apiBase={API_BASE} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Community Trading Panel Dialog */}
+      <Dialog open={showCommunityPanel} onOpenChange={setShowCommunityPanel}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-7xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Community Copy Trading
+            </DialogTitle>
+          </DialogHeader>
+          <CommunityTradingPanel apiBase={API_BASE} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Analytics Panel Dialog */}
+      <Dialog open={showAnalyticsPanel} onOpenChange={setShowAnalyticsPanel}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-7xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              Advanced Analytics & Replays
+            </DialogTitle>
+          </DialogHeader>
+          <AnalyticsPanel apiBase={API_BASE} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
