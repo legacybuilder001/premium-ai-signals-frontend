@@ -752,18 +752,6 @@ const App = () => {
                   <div id="tradingview_widget" className="h-full w-full"></div>
                 </div>
               </CardContent>
-            </Card>iv className="bg-slate-800 p-3 rounded">
-                        <div className="text-blue-400 font-semibold">MACD: +0.0012</div>
-                        <div className="text-slate-400">Bullish</div>
-                      </div>
-                      <div className="bg-slate-800 p-3 rounded">
-                        <div className="text-purple-400 font-semibold">ATR: 0.0045</div>
-                        <div className="text-slate-400">Volatility</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
             </Card>
           </div>
         </div>
